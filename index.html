@@ -295,6 +295,7 @@ function camera_worldY_for_parallax() { return camWorldY; }
 
 // ── Rocket ──
 let rocket = {};
+let invincibleUntil = 0;
 function initRocket() {
   rocket = {
     wx: W/2,
@@ -304,12 +305,17 @@ function initRocket() {
     alive: true,
     maxAlt: 0,
   };
+  invincibleUntil = 0;
   camWorldY = 0;
   camWorldX = W/2;
 }
 
 function drawRocket(sx, sy) {
   if (!rocket.alive) return;
+  const isInvincible = performance.now()/1000 < invincibleUntil;
+  const blink = isInvincible && Math.floor(performance.now()/120) % 2 === 0;
+  if (blink) return;
+
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(rocket.angle + Math.PI/2);
@@ -365,8 +371,14 @@ function drawGround() {
 
 // ── Joystick ──
 function drawJoystick() {
-  if (!joy.active) return;
-  ctx.save();
+  // Joystick visuals are intentionally hidden.
+  return;
+}
+
+function drawJoystickVisual() {
+  // Intentionally left empty to keep the touch joystick invisible.
+  return;
+}
   ctx.strokeStyle='#39ff1430'; ctx.lineWidth=1.5; ctx.shadowColor='#39ff14'; ctx.shadowBlur=6;
   ctx.beginPath(); ctx.arc(joy.ox,joy.oy,JOY_RING_R,0,Math.PI*2); ctx.stroke();
 
@@ -598,14 +610,17 @@ function startGame() {
   hudBest.textContent=highScore+' m';
 }
 function triggerDeath() {
+  if (performance.now()/1000 < invincibleUntil) return;
+
   lives--;
   spawnExplosion(rocket.wx,rocket.wy);
 
   if (lives > 0) {
-    rocket.wx = camWorldX; 
+    rocket.wx = camWorldX;
     rocket.wy = Math.max(GROUND_Y + 40, rocket.wy - 150);
     rocket.vx = 0;
     rocket.vy = 0;
+    invincibleUntil = performance.now()/1000 + 3;
     return;
   }
 
@@ -736,7 +751,10 @@ function update(dt) {
         }
       }
     }
-    if (rocket.alive&&cc(rocket.wx,rocket.wy,11,a.wx,a.wy,a.radius)){triggerDeath();return;}
+    if (rocket.alive && cc(rocket.wx,rocket.wy,11,a.wx,a.wy,a.radius)) {
+    triggerDeath();
+    return;
+  }
   }
   if (asteroids.length>65) asteroids.splice(0,asteroids.length-65);
 }
