@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Rogue Orbit</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    display: flex; justify-content: center; align-items: center;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #gameWrapper {
+    position: relative;
+    width: 100%;
+    max-width: 450px;
+    height: 100vh;
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+  #ui { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 16px 20px 0;
+  }
+  .hud-block { display: flex; flex-direction: column; }
+  .hud-label { font-size: 10px; letter-spacing: 0.15em; color: #39ff1477; text-transform: uppercase; margin-bottom: 2px; }
+  .hud-value { font-size: 22px; font-weight: bold; color: #39ff14; letter-spacing: 0.05em; text-shadow: 0 0 12px #39ff1455; }
+  .hud-right { align-items: flex-end; }
+
+  #altBar { position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background: #ffffff06; }
+  #altBarFill { position: absolute; bottom: 0; left: 0; right: 0; background: #39ff14; box-shadow: 0 0 6px #39ff1488; }
+
+  #dangerBadge {
+    position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 0.2em; color: #ff2d78;
+    text-transform: uppercase; text-shadow: 0 0 10px #ff2d7888;
+    opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+  }
+  #dangerBadge.show { opacity: 1; }
+
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: all;
+  }
+  .screen.hidden { display: none; }
+
+  #titleScreen { background: rgba(0,0,0,0.86); gap: 0; }
+  .title-eyebrow { font-size: 11px; letter-spacing: 0.3em; color: #ff2d78aa; text-transform: uppercase; margin-bottom: 10px; }
+  .title-main { font-size: 52px; font-weight: 900; letter-spacing: 0.06em; color: #39ff14; line-height: 1; margin-bottom: 6px; text-shadow: 0 0 28px #39ff1455, 0 0 60px #39ff1418; }
+  .title-sub { font-size: 12px; letter-spacing: 0.22em; color: #ff2d78; text-transform: uppercase; margin-bottom: 34px; text-shadow: 0 0 14px #ff2d7866; }
+  .controls-box { border: 1px solid #39ff1430; padding: 16px 26px; margin-bottom: 34px; background: #39ff1408; border-radius: 4px; min-width: 255px; }
+  .controls-title { font-size: 10px; letter-spacing: 0.2em; color: #39ff1488; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
+  .control-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; font-size: 13px; color: #ccc; }
+  .control-row:last-child { margin-bottom: 0; }
+  .control-key { background: #ffffff14; border: 1px solid #ffffff33; padding: 2px 10px; border-radius: 3px; font-size: 11px; color: #fff; min-width: 56px; text-align: center; letter-spacing: 0.06em; flex-shrink: 0; margin-top: 1px; }
+  .btn-launch { background: transparent; border: 2px solid #39ff14; color: #39ff14; font-family: 'Courier New', monospace; font-size: 15px; font-weight: bold; letter-spacing: 0.25em; text-transform: uppercase; padding: 16px 52px; cursor: pointer; border-radius: 3px; pointer-events: all; text-shadow: 0 0 10px #39ff1466; box-shadow: 0 0 18px #39ff1422, inset 0 0 18px #39ff1408; }
+  .btn-launch:active { background: #39ff1422; }
+
+  #gameOverScreen { background: rgba(0,0,0,0.9); gap: 0; }
+  .over-label { font-size: 11px; letter-spacing: 0.28em; color: #ff2d78aa; text-transform: uppercase; margin-bottom: 12px; }
+  .over-title { font-size: 42px; font-weight: 900; color: #ff2d78; letter-spacing: 0.08em; text-shadow: 0 0 24px #ff2d7866; margin-bottom: 28px; line-height: 1; }
+  .score-display { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 6px; }
+  .score-label { font-size: 10px; letter-spacing: 0.2em; color: #ffffff44; text-transform: uppercase; }
+  .score-number { font-size: 52px; font-weight: bold; color: #fff; letter-spacing: 0.02em; }
+  .score-unit { font-size: 12px; letter-spacing: 0.18em; color: #ffffff55; text-transform: uppercase; margin-bottom: 12px; }
+  .best-display { display: flex; align-items: center; gap: 10px; margin-bottom: 38px; }
+  .best-label { font-size: 11px; letter-spacing: 0.15em; color: #ffaa0077; text-transform: uppercase; }
+  .best-number { font-size: 18px; color: #ffaa00; letter-spacing: 0.06em; text-shadow: 0 0 10px #ffaa0044; }
+  .new-best { font-size: 11px; color: #ffaa00; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 38px; text-shadow: 0 0 12px #ffaa0077; }
+  .btn-retry { background: transparent; border: 2px solid #ff2d78; color: #ff2d78; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; letter-spacing: 0.22em; text-transform: uppercase; padding: 15px 48px; cursor: pointer; border-radius: 3px; pointer-events: all; text-shadow: 0 0 8px #ff2d7855; }
+  .btn-retry:active { background: #ff2d7822; }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="canvas"></canvas>
+  <div id="ui">
+    <div id="hud" class="hidden">
+      <div class="hud-block">
+        <div class="hud-label">Altitude</div>
+        <div class="hud-value" id="hudScore">0 m</div>
+      </div>
+      <div class="hud-block hud-right">
+        <div class="hud-label">Lives</div><div class="hud-value" id="hudLives">■■■■</div><div class="hud-label" style="margin-top:6px">Record</div>
+        <div class="hud-value" id="hudBest">0 m</div>
+      </div>
+    </div>
+    <div id="dangerBadge">⚠ asteroid storm</div>
+    <div id="altBar"><div id="altBarFill" style="height:0%"></div></div>
+
+    <div id="titleScreen" class="screen">
+      <div class="title-eyebrow">Altitude Challenge</div>
+      <div class="title-main">ROGUE<br>ORBIT</div>
+      <div class="title-sub">How high can you climb?</div>
+      <div class="controls-box">
+        <div class="controls-title">Controls</div>
+        <div class="control-row"><span class="control-key">TOUCH</span><span>Touch anywhere on the lower half of the screen</span></div>
+        <div class="control-row"><span class="control-key">DRAG</span><span>Drag to steer — the rocket follows your direction</span></div>
+        <div class="control-row"><span class="control-key">DIST</span><span>Drag farther for more thrust</span></div>
+      </div>
+      <button class="btn-launch" id="btnLaunch">LAUNCH</button>
+    </div>
+
+    <div id="gameOverScreen" class="screen hidden">
+      <div class="over-label">Mission Ended</div>
+      <div class="over-title">GAME OVER</div>
+      <div class="score-display">
+        <div class="score-label">Max Altitude</div>
+        <div class="score-number" id="finalScore">0</div>
+      </div>
+      <div class="score-unit">metres</div>
+      <div class="best-display" id="bestDisplay">
+        <span class="best-label">Record</span>
+        <span class="best-number" id="bestScore">0 m</span>
+      </div>
+      <div class="new-best hidden" id="newBestBadge">★ New Record ★</div>
+      <button class="btn-retry" id="btnRetry">RETRY</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const wrapper = document.getElementById('gameWrapper');
+
+const hudEl          = document.getElementById('hud');
+const hudScore       = document.getElementById('hudScore');
+const hudBest        = document.getElementById('hudBest');
+const hudLivesEl     = document.getElementById('hudLives');
+const altBarFill     = document.getElementById('altBarFill');
+const dangerBadge    = document.getElementById('dangerBadge');
+const titleScreen    = document.getElementById('titleScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const finalScoreEl   = document.getElementById('finalScore');
+const bestScoreEl    = document.getElementById('bestScore');
+const bestDisplay    = document.getElementById('bestDisplay');
+const newBestBadge   = document.getElementById('newBestBadge');
+const btnLaunch      = document.getElementById('btnLaunch');
+const btnRetry       = document.getElementById('btnRetry');
+
+// ── Canvas ──
+let W, H;
+function resize() {
+  const r = wrapper.getBoundingClientRect();
+  W = canvas.width  = r.width;
+  H = canvas.height = r.height;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Physics ──
+const GRAVITY      = 48;
+const THRUST_MAX   = 480;
+const DRAG         = 0.987;
+const MAX_SPEED    = 560;
+const GROUND_Y     = 14;
+const METRES_PER_PX = 0.5;
+
+let camWorldY = 0;
+let camWorldX = 0;
+const CAM_ANCHOR_FRAC = 0.70;
+
+let highScore = parseInt(localStorage.getItem('ro_hs4') || '0');
+let lives = 4;
+let state     = 'title';
+let lastTime  = 0;
+
+// ── Joystick ──
+const JOY_ZONE_FRAC = 0.45;
+const JOY_DEAD      = 7;
+const JOY_MAX_R     = 85;
+const JOY_RING_R    = 62;
+
+const joy = {
+  active:  false,
+  id:      null,
+  ox: 0, oy: 0,
+  cx: 0, cy: 0,
+  nx: 0, ny: 0,
+  t:  0,
+};
+
+function joyZoneTopY() { return H * JOY_ZONE_FRAC; }
+
+function processJoyTouches(e) {
+  e.preventDefault();
+  const rect = wrapper.getBoundingClientRect();
+  const zTop = joyZoneTopY();
+
+  if (joy.active && joy.id !== null) {
+    let alive = false;
+    for (const t of e.touches) {
+      if (t.identifier === joy.id) {
+        alive = true;
+        joy.cx = t.clientX - rect.left;
+        joy.cy = t.clientY - rect.top;
+        break;
+      }
+    }
+    if (!alive) { joy.active = false; joy.id = null; joy.t = 0; }
+  }
+
+  if (!joy.active) {
+    const src = e.changedTouches || e.touches;
+    for (const t of src) {
+      const tx = t.clientX - rect.left;
+      const ty = t.clientY - rect.top;
+      if (ty >= zTop) {
+        joy.active = true;
+        joy.id = t.identifier;
+        joy.ox = tx; joy.oy = ty;
+        joy.cx = tx; joy.cy = ty;
+        break;
+      }
+    }
+  }
+
+  if (joy.active) {
+    const dx = joy.cx - joy.ox;
+    const dy = joy.cy - joy.oy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < JOY_DEAD) {
+      joy.nx = 0; joy.ny = 0; joy.t = 0;
+    } else {
+      const clamped = Math.min(dist, JOY_MAX_R);
+      joy.t  = clamped / JOY_MAX_R;
+      joy.nx = dx / dist;
+      joy.ny = dy / dist;
+    }
+  } else {
+    joy.nx = 0; joy.ny = 0; joy.t = 0;
+  }
+}
+
+wrapper.addEventListener('touchstart',  processJoyTouches, { passive: false });
+wrapper.addEventListener('touchmove',   processJoyTouches, { passive: false });
+wrapper.addEventListener('touchend',    processJoyTouches, { passive: false });
+wrapper.addEventListener('touchcancel', processJoyTouches, { passive: false });
+
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+function worldToScreen(wx, wy) {
+  return {
+    sx: wx - camWorldX + W/2,
+    sy: H - (wy - camWorldY),
+  };
+}
+
+// ── Stars ──
+const STAR_LAYERS = [
+  { n: 55, parallax: 0.06, r: 0.7,  a: 0.28 },
+  { n: 35, parallax: 0.22, r: 1.25, a: 0.55 },
+  { n: 18, parallax: 0.55, r: 1.9,  a: 0.84 },
+];
+let stars = [];
+function initStars() {
+  stars = [];
+  for (const L of STAR_LAYERS)
+    for (let i=0; i<L.n; i++)
+      stars.push({ bx: Math.random()*1200, by: Math.random()*15000, L, tw: Math.random()*Math.PI*2 });
+}
+
+function drawStars(dt) {
+  for (const s of stars) {
+    s.tw += dt * 1.2;
+    const py = camera_worldY_for_parallax() * s.L.parallax;
+    const sy = H - (((s.by - py) % H) + H) % H;
+    const alpha = s.L.a * (0.72 + 0.28*Math.sin(s.tw));
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(s.bx % W, sy, s.L.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+function camera_worldY_for_parallax() { return camWorldY; }
+
+// ── Rocket ──
+let rocket = {};
+function initRocket() {
+  rocket = {
+    wx: W/2,
+    wy: GROUND_Y + 22,
+    vx: 0, vy: 0,
+    angle: -Math.PI/2,
+    alive: true,
+    maxAlt: 0,
+  };
+  camWorldY = 0;
+  camWorldX = W/2;
+}
+
+function drawRocket(sx, sy) {
+  if (!rocket.alive) return;
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(rocket.angle + Math.PI/2);
+
+  ctx.strokeStyle = '#39ff14';
+  ctx.shadowColor = '#39ff14';
+  ctx.shadowBlur  = 14;
+  ctx.lineWidth   = 2.2;
+
+  ctx.beginPath();
+  ctx.moveTo(0,-18); ctx.lineTo(8,5); ctx.lineTo(5,12); ctx.lineTo(-5,12); ctx.lineTo(-8,5);
+  ctx.closePath(); ctx.stroke();
+
+  ctx.beginPath(); ctx.moveTo(-5,7); ctx.lineTo(-14,18); ctx.lineTo(-5,12); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(5,7);  ctx.lineTo(14,18);  ctx.lineTo(5,12);  ctx.closePath(); ctx.stroke();
+
+  ctx.strokeStyle = '#39ff1677'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.ellipse(0,-3,3.5,5.5,0,0,Math.PI*2); ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Ground ──
+function drawGround() {
+  const gsy = H - (GROUND_Y - camWorldY);
+  if (gsy < -30 || gsy > H+30) return;
+  ctx.save();
+
+  const groundLeftScreen = -camWorldX % 20;
+  
+  ctx.strokeStyle='#39ff1466'; ctx.shadowColor='#39ff14'; ctx.shadowBlur=8; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,gsy); ctx.lineTo(W,gsy); ctx.stroke();
+
+  ctx.strokeStyle='#39ff1422'; ctx.shadowBlur=0; ctx.lineWidth=1;
+  for (let x = groundLeftScreen; x < W; x += 20) {
+    ctx.beginPath(); ctx.moveTo(x,gsy); ctx.lineTo(x-10,gsy+14); ctx.stroke();
+  }
+
+  const {sx: px} = worldToScreen(W/2 - 36, GROUND_Y);
+  const pw=72;
+  ctx.strokeStyle='#39ff14'; ctx.shadowBlur=10; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(px,gsy); ctx.lineTo(px+pw,gsy); ctx.stroke();
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(px+10,gsy); ctx.lineTo(px,gsy+14);
+  ctx.moveTo(px+pw-10,gsy); ctx.lineTo(px+pw,gsy+14);
+  ctx.stroke();
+
+  ctx.font='9px Courier New'; ctx.fillStyle='#39ff1488'; ctx.textAlign='center'; ctx.shadowBlur=0;
+  ctx.fillText('LAUNCH PAD', px + pw/2, gsy+26);
+  ctx.restore();
+}
+
+// ── Joystick ──
+function drawJoystick() {
+  if (!joy.active) return;
+  ctx.save();
+  ctx.strokeStyle='#39ff1430'; ctx.lineWidth=1.5; ctx.shadowColor='#39ff14'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(joy.ox,joy.oy,JOY_RING_R,0,Math.PI*2); ctx.stroke();
+
+  ctx.strokeStyle='#39ff1450'; ctx.lineWidth=1; ctx.shadowBlur=0;
+  for (let a=0; a<Math.PI*2; a+=Math.PI/2) {
+    const i1x=joy.ox+Math.cos(a)*(JOY_RING_R-8),  i1y=joy.oy+Math.sin(a)*(JOY_RING_R-8);
+    const o1x=joy.ox+Math.cos(a)*(JOY_RING_R+8),  o1y=joy.oy+Math.sin(a)*(JOY_RING_R+8);
+    ctx.beginPath(); ctx.moveTo(i1x,i1y); ctx.lineTo(o1x,o1y); ctx.stroke();
+  }
+
+  const kDist = joy.t * JOY_RING_R;
+  const kx = joy.ox + joy.nx * kDist;
+  const ky = joy.oy + joy.ny * kDist;
+
+  ctx.strokeStyle=`rgba(57,255,20,${0.18+joy.t*0.22})`; ctx.lineWidth=1.5;
+  ctx.setLineDash([4,7]);
+  ctx.beginPath(); ctx.moveTo(joy.ox,joy.oy); ctx.lineTo(kx,ky); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const kR = 16 + joy.t*10;
+  ctx.fillStyle=`rgba(57,255,20,${0.05+joy.t*0.10})`;
+  ctx.strokeStyle=`rgba(57,255,20,${0.30+joy.t*0.55})`;
+  ctx.shadowColor='#39ff14'; ctx.shadowBlur=8+joy.t*18; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(kx,ky,kR,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  ctx.fillStyle='#39ff1455'; ctx.shadowBlur=3;
+  ctx.beginPath(); ctx.arc(joy.ox,joy.oy,4,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Thrust ──
+let thrustParts = [];
+function spawnThrust(dt, power) {
+  const n = Math.floor(28*dt*power);
+  const backScreen = rocket.angle + Math.PI;
+  const bwx = rocket.wx + Math.cos(backScreen) * 14;
+  const bwy = rocket.wy + Math.sin(backScreen) * (-14);
+  const cols = ['#ff6a00','#ffcc00','#ff2d78','#ffffa0'];
+  for (let i=0; i<n; i++) {
+    const spread = (Math.random()-0.5)*0.7;
+    const spd    = 130+Math.random()*200;
+    const a      = backScreen + spread;
+    thrustParts.push({
+      wx: bwx+(Math.random()-0.5)*4,
+      wy: bwy+(Math.random()-0.5)*4,
+      vx: Math.cos(a)*spd + rocket.vx*0.2,
+      vy: -Math.sin(a)*spd + rocket.vy*0.2,
+      life: 0.18+Math.random()*0.18,
+      maxLife: 0.18+Math.random()*0.18,
+      size: 2+Math.random()*2.5,
+      col: cols[Math.floor(Math.random()*cols.length)],
+    });
+  }
+}
+
+function updateThrustParts(dt) {
+  for (let i=thrustParts.length-1; i>=0; i--) {
+    const p=thrustParts[i]; p.life-=dt;
+    if (p.life<=0) { thrustParts.splice(i,1); continue; }
+    p.wx+=p.vx*dt; p.wy+=p.vy*dt; p.vx*=0.88; p.vy*=0.88;
+  }
+}
+function drawThrustParts() {
+  for (const p of thrustParts) {
+    const {sx,sy}=worldToScreen(p.wx,p.wy);
+    if (sy<-20||sy>H+20) continue;
+    const t=p.life/p.maxLife;
+    ctx.save(); ctx.globalAlpha=t*0.9;
+    ctx.fillStyle=p.col; ctx.shadowColor=p.col; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(sx,sy,p.size*t,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Explosion ──
+let explParts = [];
+function spawnExplosion(wx,wy) {
+  const cols=['#39ff14','#ff2d78','#ffcc00','#ff6a00','#ffffff'];
+  for (let i=0;i<100;i++) {
+    const a=Math.random()*Math.PI*2, spd=55+Math.random()*340;
+    explParts.push({
+      wx,wy, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd,
+      life:0.5+Math.random()*0.9, maxLife:0.5+Math.random()*0.9,
+      size:1.5+Math.random()*3.5, col:cols[Math.floor(Math.random()*cols.length)],
+    });
+  }
+}
+function updateExpl(dt) {
+  for (let i=explParts.length-1;i>=0;i--) {
+    const p=explParts[i]; p.life-=dt;
+    if (p.life<=0){explParts.splice(i,1);continue;}
+    p.wx+=p.vx*dt; p.wy+=p.vy*dt; p.vx*=0.96; p.vy*=0.96;
+  }
+}
+function drawExpl() {
+  for (const p of explParts) {
+    const {sx,sy}=worldToScreen(p.wx,p.wy);
+    if (sy<-20||sy>H+20) continue;
+    const t=p.life/p.maxLife;
+    ctx.save(); ctx.globalAlpha=t*0.95;
+    ctx.fillStyle=p.col; ctx.shadowColor=p.col; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(sx,sy,p.size*t,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Asteroids ──
+let asteroids=[], spawnTimer=0;
+const AST_START=500, AST_MAX=10000;
+
+function densityAt(altPx) {
+  if (altPx<AST_START) return 0;
+  const t=Math.min(1,(altPx-AST_START)/(AST_MAX-AST_START));
+  return t*t;
+}
+function makeVerts(r,n) {
+  const v=[];
+  for (let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2, rr=r*(0.6+Math.random()*0.55);
+    v.push({x:Math.cos(a)*rr,y:Math.sin(a)*rr});
+  }
+  return v;
+}
+function spawnAst(wx,wy,vx,vy,r,gen) {
+  const cols=['#ff2d78','#ff6a00','#ffaa00'];
+  asteroids.push({
+    wx,wy,vx,vy,radius:r,
+    angle:Math.random()*Math.PI*2,
+    spin:(Math.random()-0.5)*2.8,
+    verts:makeVerts(r,7+Math.floor(Math.random()*5)),
+    gen:gen||0,
+    col:cols[Math.floor(Math.random()*cols.length)],
+  });
+}
+
+function spawnAstFromEdge() {
+  const d = densityAt(Math.max(0, rocket.wy - GROUND_Y));
+  
+  const spd = 15 + d * 45 + Math.random() * 25; 
+  const big = Math.random() < 0.5; 
+  const r = big ? 26 + Math.random() * 20 : 13 + Math.random() * 13;
+  const side = Math.floor(Math.random() * 3);
+  
+  let wx, wy, vx, vy;
+  const topWorldY = camWorldY + H + r + Math.random() * 180;
+  const sideWorldY = camWorldY + Math.random() * H;
+  
+  const leftEdge = camWorldX - W / 2;
+  const rightEdge = camWorldX + W / 2;
+
+  if (side === 0) { 
+    wx = leftEdge + Math.random() * W; 
+    wy = topWorldY;
+    const a = Math.PI + (Math.random() * 0.8 - 0.4);
+    vx = Math.cos(a) * spd; vy = Math.sin(a) * spd;
+  } else if (side === 1) { 
+    wx = leftEdge - r; 
+    wy = sideWorldY;
+    const a = (Math.random() * 0.9 - 0.45);
+    vx = Math.cos(a) * spd; vy = Math.sin(a) * spd;
+  } else { 
+    wx = rightEdge + r; 
+    wy = sideWorldY;
+    const a = Math.PI + (Math.random() * 0.9 - 0.45);
+    vx = Math.cos(a) * spd; vy = Math.sin(a) * spd;
+  }
+  spawnAst(wx, wy, vx, vy, r, 0);
+}
+
+function splitAst(ast) {
+  if (ast.gen>=2||ast.radius<12) return;
+  const n=2+(ast.gen===0?1:0);
+  for (let i=0;i<n;i++) {
+    const a=Math.random()*Math.PI*2;
+    const spd=Math.sqrt(ast.vx*ast.vx+ast.vy*ast.vy)*(0.65+Math.random()*0.6);
+    const r=ast.radius*(0.38+Math.random()*0.18);
+    spawnAst(ast.wx+(Math.random()-0.5)*ast.radius,ast.wy+(Math.random()-0.5)*ast.radius,
+             Math.cos(a)*spd,Math.sin(a)*spd,r,ast.gen+1);
+  }
+}
+function drawAst(ast) {
+  const {sx,sy}=worldToScreen(ast.wx,ast.wy);
+  if (sy<-ast.radius-10||sy>H+ast.radius+10) return;
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(ast.angle);
+  ctx.strokeStyle=ast.col; ctx.shadowColor=ast.col; ctx.shadowBlur=10; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(ast.verts[0].x,ast.verts[0].y);
+  for (let i=1;i<ast.verts.length;i++) ctx.lineTo(ast.verts[i].x,ast.verts[i].y);
+  ctx.closePath(); ctx.stroke();
+  ctx.globalAlpha=0.07; ctx.fillStyle=ast.col; ctx.fill();
+  ctx.restore();
+}
+function cc(ax,ay,ar,bx,by,br){const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy<(ar+br)*(ar+br);}
+
+// ── Zones ──
+const ZONES=[
+  {alt:0,    label:'Troposphere',  col:'#4af'},
+  {alt:500,  label:'Stratosphere', col:'#a8f'},
+  {alt:1600, label:'Mesosphere',   col:'#fa8'},
+  {alt:3200, label:'Thermosphere', col:'#f84'},
+  {alt:5500, label:'Exosphere',    col:'#f44'},
+];
+function getZone(a){let z=ZONES[0];for(const Z of ZONES)if(a>=Z.alt)z=Z;return z;}
+let zoneBanner={text:'',col:'#fff',timer:0},lastZone='';
+function checkZone(a){const z=getZone(a);if(z.label!==lastZone){lastZone=z.label;zoneBanner={text:z.label.toUpperCase(),col:z.col,timer:2.2};}}
+function drawZoneBanner(){
+  if(zoneBanner.timer<=0)return;
+  const alpha=Math.min(1,zoneBanner.timer)*Math.min(1,zoneBanner.timer*2.5);
+  ctx.save();ctx.globalAlpha=alpha;ctx.font='11px Courier New';
+  ctx.fillStyle=zoneBanner.col;ctx.shadowColor=zoneBanner.col;ctx.shadowBlur=14;
+  ctx.textAlign='center';ctx.fillText('— '+zoneBanner.text+' —',W/2,H*0.38);ctx.restore();
+}
+function drawZoneTint(a){
+  if(a<120)return;
+  const z=getZone(a),t=Math.min(1,(a-120)/1000);
+  ctx.save();ctx.globalAlpha=t*0.055;ctx.fillStyle=z.col;ctx.fillRect(0,0,W,H);ctx.restore();
+}
+
+// ── Game Management ──
+function startGame() {
+  asteroids=[];thrustParts=[];explParts=[];
+  spawnTimer=0;lastZone='';zoneBanner.timer=0;
+  initRocket();initStars();
+  lives = 4;
+  state='playing';
+  titleScreen.classList.add('hidden');
+  gameOverScreen.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  hudBest.textContent=highScore+' m';
+}
+function triggerDeath() {
+  lives--;
+  spawnExplosion(rocket.wx,rocket.wy);
+
+  if (lives > 0) {
+    rocket.wx = camWorldX; 
+    rocket.wy = Math.max(GROUND_Y + 40, rocket.wy - 150);
+    rocket.vx = 0;
+    rocket.vy = 0;
+    return;
+  }
+
+  rocket.alive=false; state='dead';
+  setTimeout(showGameOver,1100);
+}
+function showGameOver() {
+  const altM=Math.floor(rocket.maxAlt*METRES_PER_PX);
+  const isNew=altM>highScore;
+  if(isNew){highScore=altM;localStorage.setItem('ro_hs4',highScore);}
+  finalScoreEl.textContent=altM;
+  bestScoreEl.textContent=highScore+' m';
+  if(isNew){bestDisplay.classList.add('hidden');newBestBadge.classList.remove('hidden');}
+  else{bestDisplay.classList.remove('hidden');newBestBadge.classList.add('hidden');}
+  gameOverScreen.classList.remove('hidden');
+  hudEl.classList.add('hidden');
+  state='gameover';
+}
+
+// ── Update ──
+function update(dt) {
+  if (state!=='playing' && state!=='dead') return;
+  updateExpl(dt);
+  if (state!=='playing') return;
+  if (zoneBanner.timer>0) zoneBanner.timer-=dt;
+
+  let thrustWX=0, thrustWY=0, thrustPow=0;
+
+  if (joy.active && joy.t > 0) {
+    const wdx =  joy.nx;
+    const wdy = -joy.ny;
+    const force = joy.t * THRUST_MAX;
+    thrustWX = wdx * force;
+    thrustWY = wdy * force;
+    thrustPow = joy.t;
+
+    if (joy.t > 0.12) {
+      const targetScreenAngle = Math.atan2(joy.ny, joy.nx);
+      let diff = targetScreenAngle - rocket.angle;
+      while (diff >  Math.PI) diff -= Math.PI*2;
+      while (diff < -Math.PI) diff += Math.PI*2;
+      rocket.angle += diff * Math.min(1, dt*12);
+    }
+  } else {
+    const rotL = keys['ArrowLeft']  || keys['KeyA'];
+    const rotR = keys['ArrowRight'] || keys['KeyD'];
+    const fwd  = keys['ArrowUp']    || keys['KeyW'];
+    if (rotL) rocket.angle -= 3.2*dt;
+    if (rotR) rocket.angle += 3.2*dt;
+    if (fwd) {
+      thrustWX = Math.cos(rocket.angle) * THRUST_MAX;
+      thrustWY = -Math.sin(rocket.angle) * THRUST_MAX;
+      thrustPow = 1;
+    }
+  }
+
+  rocket.vx += thrustWX * dt;
+  rocket.vy += thrustWY * dt;
+  if (thrustPow > 0) spawnThrust(dt, thrustPow);
+
+  rocket.vy -= GRAVITY * dt;
+
+  const df = Math.pow(DRAG, dt*60);
+  rocket.vx *= df; rocket.vy *= df;
+
+  const spd=Math.sqrt(rocket.vx*rocket.vx+rocket.vy*rocket.vy);
+  if (spd>MAX_SPEED) { rocket.vx=(rocket.vx/spd)*MAX_SPEED; rocket.vy=(rocket.vy/spd)*MAX_SPEED; }
+
+  rocket.wx += rocket.vx*dt;
+  rocket.wy += rocket.vy*dt;
+
+  rocket.wx = Math.max(-5000, Math.min(5000, rocket.wx));
+
+  if (rocket.wy <= GROUND_Y+14) {
+    rocket.wy = GROUND_Y+14;
+    if (rocket.vy<0) rocket.vy=0;
+    rocket.vx *= 0.80;
+  }
+
+  const altPx=Math.max(0,rocket.wy-GROUND_Y);
+  if (altPx>rocket.maxAlt) rocket.maxAlt=altPx;
+
+  const wantCam=rocket.wy - H*(1-CAM_ANCHOR_FRAC);
+  const targetCam=Math.max(0,wantCam);
+  camWorldY += (targetCam-camWorldY)*Math.min(1,dt*5);
+
+  const targetCamX = rocket.wx;
+  camWorldX += (targetCamX-camWorldX)*Math.min(1,dt*4);
+
+  updateThrustParts(dt);
+
+  const altM=Math.floor(altPx*METRES_PER_PX);
+  hudScore.textContent=altM+' m';
+  if (hudLivesEl) hudLivesEl.textContent='■'.repeat(lives)+'□'.repeat(4-lives);
+  altBarFill.style.height=Math.min(100,(rocket.maxAlt/(AST_MAX*1.5))*100).toFixed(1)+'%';
+
+  const dens=densityAt(altPx);
+  dangerBadge.classList.toggle('show',dens>0.6);
+  checkZone(altPx);
+
+  if (dens > 0) {
+    const interval = Math.max(0.45, 3.2 - dens * 2.5);
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnAstFromEdge();
+      if (dens > 0.45 && Math.random() < dens * 0.65) spawnAstFromEdge();
+      if (dens > 0.80 && Math.random() < 0.40) spawnAstFromEdge(); 
+      spawnTimer = interval * (0.65 + Math.random() * 0.7);
+    }
+  }
+
+  for (let i=asteroids.length-1;i>=0;i--) {
+    const a=asteroids[i];
+    a.wx+=a.vx*dt; a.wy+=a.vy*dt; a.angle+=a.spin*dt;
+    if (a.wy<camWorldY-H*1.5){asteroids.splice(i,1);continue;}
+    if (a.wy>camWorldY+H*3){asteroids.splice(i,1);continue;}
+
+    for (let j=i-1;j>=0;j--) {
+      const b=asteroids[j];
+      if (cc(a.wx,a.wy,a.radius,b.wx,b.wy,b.radius)) {
+        if (Math.random()<0.14) { splitAst(a);splitAst(b);asteroids.splice(i,1);asteroids.splice(j,1);i--;break; }
+        const dx=b.wx-a.wx,dy=b.wy-a.wy,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const nx=dx/d,ny=dy/d,rv=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+        if (rv>0) {
+          const imp=rv*0.88,mA=a.radius*a.radius,mB=b.radius*b.radius,tot=mA+mB;
+          a.vx-=imp*(mB/tot)*nx;a.vy-=imp*(mB/tot)*ny;
+          b.vx+=imp*(mA/tot)*nx;b.vy+=imp*(mA/tot)*ny;
+        }
+      }
+    }
+    if (rocket.alive&&cc(rocket.wx,rocket.wy,11,a.wx,a.wy,a.radius)){triggerDeath();return;}
+  }
+  if (asteroids.length>65) asteroids.splice(0,asteroids.length-65);
+}
+
+// ── Draw ──
+function draw(dt) {
+  ctx.clearRect(0,0,W,H);
+
+  const altPx=Math.max(0,rocket.wy-GROUND_Y);
+  const t=Math.min(1,altPx/3500);
+  ctx.fillStyle=`rgb(${Math.floor(4+t*3)},${Math.floor(5-t*2)},${Math.floor(14+t*12)})`;
+  ctx.fillRect(0,0,W,H);
+
+  drawZoneTint(altPx);
+  drawStars(dt);
+  drawGround();
+  drawThrustParts();
+  drawExpl();
+  for (const a of asteroids) drawAst(a);
+  drawZoneBanner();
+
+  if (rocket.alive) {
+    const {sx,sy}=worldToScreen(rocket.wx,rocket.wy);
+    drawRocket(sx,sy);
+  }
+
+  drawJoystick();
+}
+
+// ── Main loop ──
+function loop(ts) {
+  const dt=Math.min((ts-lastTime)/1000,0.05);
+  lastTime=ts;
+  update(dt);
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+
+// ── Buttons ──
+function addBtn(el,fn) {
+  el.addEventListener('click',fn);
+  el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();fn();});
+}
+addBtn(btnLaunch,startGame);
+addBtn(btnRetry,()=>{gameOverScreen.classList.add('hidden');startGame();});
+
+// ── Boot ──
+hudEl.classList.add('hidden');
+initStars();
+lastTime=performance.now();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
